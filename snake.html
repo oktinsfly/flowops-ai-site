@@ -35,6 +35,7 @@
       height: 100vh;
       overflow: hidden;
       padding: 12px;
+      touch-action: none;
     }
     header {
       width: 100%;
@@ -112,6 +113,7 @@
       border-radius: 12px;
       text-align: center;
       padding: 20px;
+      z-index: 10;
     }
     .overlay.hidden {
       display: none;
@@ -126,6 +128,8 @@
       font-size: 14px;
       color: var(--text-muted);
       margin-bottom: 20px;
+      max-width: 280px;
+      line-height: 1.4;
     }
     .btn {
       background: linear-gradient(135deg, #10b981, #059669);
@@ -162,6 +166,7 @@
       justify-content: center;
       cursor: pointer;
       user-select: none;
+      touch-action: manipulation;
     }
     .d-btn:active {
       background: #21262d;
@@ -200,25 +205,36 @@
   <div id="game-container">
     <canvas id="canvas" width="400" height="400"></canvas>
     <div id="overlay" class="overlay">
-      <h2 id="overlay-title">Змейка в Лабиринте 🐍</h2>
-      <p id="overlay-sub">Играй, пока Antigravity выполняет задачу!</p>
+      <h2 id="overlay-title">Лабиринт-Змейка 🎮</h2>
+      <p id="overlay-sub">Играйте, пока Antigravity решает вашу задачу!</p>
       <button class="btn" id="start-btn">Начать игру</button>
     </div>
   </div>
 
   <div class="controls">
-    <div class="d-btn up" onclick="setDir(0, -1)">▲</div>
-    <div class="d-btn left" onclick="setDir(-1, 0)">◀</div>
-    <div class="d-btn down" onclick="setDir(0, 1)">▼</div>
-    <div class="d-btn right" onclick="setDir(1, 0)">▶</div>
+    <div class="d-btn up" id="btn-up">▲</div>
+    <div class="d-btn left" id="btn-left">◀</div>
+    <div class="d-btn down" id="btn-down">▼</div>
+    <div class="d-btn right" id="btn-right">▶</div>
   </div>
 
-  <footer>Свайпайте по экрану или используйте кнопки / стрелки</footer>
+  <footer>Управление: свайп по экрану, кнопки или WASD / стрелки</footer>
 
   <script>
-    if (window.Telegram && window.Telegram.WebApp) {
-      window.Telegram.WebApp.ready();
-      window.Telegram.WebApp.expand();
+    // Инициализация Telegram WebApp API
+    try {
+      if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+        if (window.Telegram.WebApp.setHeaderColor) {
+          window.Telegram.WebApp.setHeaderColor('#0d1117');
+        }
+        if (window.Telegram.WebApp.setBackgroundColor) {
+          window.Telegram.WebApp.setBackgroundColor('#0d1117');
+        }
+      }
+    } catch (e) {
+      console.warn("Telegram WebApp init:", e);
     }
 
     const canvas = document.getElementById("canvas");
@@ -234,40 +250,35 @@
     const TILES = canvas.width / GRID_SIZE; // 20x20
 
     let score = 0;
-    let highScore = localStorage.getItem("snake_high") || 0;
+    let highScore = parseInt(localStorage.getItem("snake_high") || "0", 10);
     highScoreEl.innerText = highScore;
 
     let snake = [];
-    let dir = { x: 0, y: -1 };
-    let nextDir = { x: 0, y: -1 };
-    let food = { x: 5, y: 5 };
+    let dir = { x: 1, y: 0 };
+    let nextDir = { x: 1, y: 0 };
+    let food = { x: 15, y: 10 };
     let walls = [];
     let gameLoop = null;
     let isRunning = false;
 
-    // Generate maze walls
+    // Генерация препятствий лабиринта
+    // Препятствия расположены только по углам в виде футуристических уголков.
+    // Центр поля (8x8) и основные оси полностью свободны, что исключает внезапные столкновения на старте!
     function initMaze() {
       walls = [];
-      // Border walls with 4 entry/wrap holes or solid perimeter
-      // Let's create stylish maze blocks inside
       const layout = [
-        // Top-left corner box
-        {x: 3, y: 3, w: 4, h: 1},
-        {x: 3, y: 4, w: 1, h: 3},
-        // Top-right corner box
-        {x: 13, y: 3, w: 4, h: 1},
-        {x: 16, y: 4, w: 1, h: 3},
-        // Bottom-left box
-        {x: 3, y: 16, w: 4, h: 1},
-        {x: 3, y: 13, w: 1, h: 3},
-        // Bottom-right box
-        {x: 13, y: 16, w: 4, h: 1},
-        {x: 16, y: 13, w: 1, h: 3},
-        // Central labyrinth pillars
-        {x: 9, y: 6, w: 2, h: 2},
-        {x: 9, y: 12, w: 2, h: 2},
-        {x: 6, y: 9, w: 2, h: 2},
-        {x: 12, y: 9, w: 2, h: 2}
+        // Верхний левый угол
+        { x: 2, y: 2, w: 4, h: 1 },
+        { x: 2, y: 3, w: 1, h: 3 },
+        // Верхний правый угол
+        { x: 14, y: 2, w: 4, h: 1 },
+        { x: 17, y: 3, w: 1, h: 3 },
+        // Нижний левый угол
+        { x: 2, y: 17, w: 4, h: 1 },
+        { x: 2, y: 14, w: 1, h: 3 },
+        // Нижний правый угол
+        { x: 14, y: 17, w: 4, h: 1 },
+        { x: 17, y: 14, w: 1, h: 3 }
       ];
 
       layout.forEach(b => {
@@ -303,13 +314,14 @@
 
     function resetGame() {
       initMaze();
+      // Старт в центре поля с направлением ВПРАВО в свободное пространство
       snake = [
-        { x: 10, y: 15 },
-        { x: 10, y: 16 },
-        { x: 10, y: 17 }
+        { x: 10, y: 10 },
+        { x: 9, y: 10 },
+        { x: 8, y: 10 }
       ];
-      dir = { x: 0, y: -1 };
-      nextDir = { x: 0, y: -1 };
+      dir = { x: 1, y: 0 };
+      nextDir = { x: 1, y: 0 };
       score = 0;
       scoreEl.innerText = score;
       spawnFood();
@@ -320,47 +332,55 @@
       overlay.classList.add("hidden");
       isRunning = true;
       if (gameLoop) clearInterval(gameLoop);
-      gameLoop = setInterval(update, 120);
+      draw();
+      gameLoop = setInterval(update, 125);
     }
 
     function gameOver() {
       isRunning = false;
-      clearInterval(gameLoop);
+      if (gameLoop) clearInterval(gameLoop);
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        try {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred("error");
+        } catch (e) {}
+      }
       if (score > highScore) {
         highScore = score;
         localStorage.setItem("snake_high", highScore);
         highScoreEl.innerText = highScore;
       }
       overlayTitle.innerText = "Игра окончена!";
-      overlaySub.innerText = `Вы набрали: ${score} очков. Antigravity продолжает работу!`;
+      overlaySub.innerText = `Вы набрали ${score} очков. Antigravity продолжает выполнение задачи!`;
       startBtn.innerText = "Играть снова";
       overlay.classList.remove("hidden");
     }
 
     function setDir(dx, dy) {
-      // Prevent reversing
+      if (!isRunning) return;
+      // Защита от разворота на 180 градусов
       if (dx !== 0 && dir.x === -dx) return;
       if (dy !== 0 && dir.y === -dy) return;
       nextDir = { x: dx, y: dy };
     }
 
     function update() {
+      if (!isRunning) return;
       dir = nextDir;
       let head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
 
-      // Screen wrapping (through outer walls)
+      // Плавный переход через границы экрана (Screen wrapping)
       if (head.x < 0) head.x = TILES - 1;
       if (head.x >= TILES) head.x = 0;
       if (head.y < 0) head.y = TILES - 1;
       if (head.y >= TILES) head.y = 0;
 
-      // Check wall collision
+      // Проверка столкновения со стеной лабиринта
       if (isWall(head.x, head.y)) {
         gameOver();
         return;
       }
 
-      // Check self collision
+      // Проверка столкновения с собственным телом
       if (isSnake(head.x, head.y)) {
         gameOver();
         return;
@@ -368,12 +388,14 @@
 
       snake.unshift(head);
 
-      // Check food
+      // Проверка съедания еды
       if (head.x === food.x && head.y === food.y) {
         score += 10;
         scoreEl.innerText = score;
         if (window.Telegram?.WebApp?.HapticFeedback) {
-          window.Telegram.WebApp.HapticFeedback.impactOccurred("light");
+          try {
+            window.Telegram.WebApp.HapticFeedback.impactOccurred("light");
+          } catch (e) {}
         }
         spawnFood();
       } else {
@@ -387,7 +409,7 @@
       ctx.fillStyle = "#090d13";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw grid subtle lines
+      // Тонкая сетка киберпанк
       ctx.strokeStyle = "#161b22";
       ctx.lineWidth = 1;
       for (let i = 0; i <= canvas.width; i += GRID_SIZE) {
@@ -399,7 +421,7 @@
         ctx.stroke();
       }
 
-      // Draw Walls (Neon Cyber blocks)
+      // Отрисовка стен лабиринта (Неоновые блоки)
       walls.forEach(w => {
         ctx.fillStyle = "#21262d";
         ctx.strokeStyle = "#38bdf8";
@@ -408,7 +430,7 @@
         ctx.strokeRect(w.x * GRID_SIZE + 1, w.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2);
       });
 
-      // Draw Food (Pulsing Energy Core)
+      // Отрисовка еды (Пульсирующее ядро энергии)
       ctx.fillStyle = "#f43f5e";
       ctx.shadowColor = "#f43f5e";
       ctx.shadowBlur = 10;
@@ -420,9 +442,9 @@
         0, Math.PI * 2
       );
       ctx.fill();
-      ctx.shadowBlur = 0; // reset
+      ctx.shadowBlur = 0;
 
-      // Draw Snake
+      // Отрисовка Змейки
       snake.forEach((s, idx) => {
         if (idx === 0) {
           ctx.fillStyle = "#00ffcc";
@@ -447,36 +469,47 @@
 
     startBtn.addEventListener("click", startGame);
 
-    // Keyboard support
+    // Поддержка кнопок D-Pad
+    document.getElementById("btn-up").addEventListener("click", () => setDir(0, -1));
+    document.getElementById("btn-left").addEventListener("click", () => setDir(-1, 0));
+    document.getElementById("btn-down").addEventListener("click", () => setDir(0, 1));
+    document.getElementById("btn-right").addEventListener("click", () => setDir(1, 0));
+
+    // Поддержка клавиатуры (WASD и стрелки)
     window.addEventListener("keydown", (e) => {
       switch (e.key) {
-        case "ArrowUp": case "w": case "W": setDir(0, -1); break;
-        case "ArrowDown": case "s": case "S": setDir(0, 1); break;
-        case "ArrowLeft": case "a": case "A": setDir(-1, 0); break;
-        case "ArrowRight": case "d": case "D": setDir(1, 0); break;
+        case "ArrowUp": case "w": case "W": case "Ц": case "ц": setDir(0, -1); break;
+        case "ArrowDown": case "s": case "S": case "Ы": case "ы": setDir(0, 1); break;
+        case "ArrowLeft": case "a": case "A": case "Ф": case "ф": setDir(-1, 0); break;
+        case "ArrowRight": case "d": case "D": case "В": case "в": setDir(1, 0); break;
       }
     });
 
-    // Touch swipe support
+    // Поддержка сенсорных свайпов
     let touchStartX = 0;
     let touchStartY = 0;
     canvas.addEventListener("touchstart", (e) => {
-      touchStartX = e.changedTouches[0].screenX;
-      touchStartY = e.changedTouches[0].screenY;
-    }, { passive: true });
-
-    canvas.addEventListener("touchend", (e) => {
-      let dx = e.changedTouches[0].screenX - touchStartX;
-      let dy = e.changedTouches[0].screenY - touchStartY;
-      if (Math.abs(dx) > Math.abs(dy)) {
-        if (Math.abs(dx) > 20) setDir(dx > 0 ? 1 : -1, 0);
-      } else {
-        if (Math.abs(dy) > 20) setDir(0, dy > 0 ? 1 : -1);
+      if (e.touches.length > 0) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
       }
     }, { passive: true });
 
-    // Initial draw
+    canvas.addEventListener("touchend", (e) => {
+      if (e.changedTouches.length > 0) {
+        let dx = e.changedTouches[0].clientX - touchStartX;
+        let dy = e.changedTouches[0].clientY - touchStartY;
+        if (Math.abs(dx) > Math.abs(dy)) {
+          if (Math.abs(dx) > 15) setDir(dx > 0 ? 1 : -1, 0);
+        } else {
+          if (Math.abs(dy) > 15) setDir(0, dy > 0 ? 1 : -1);
+        }
+      }
+    }, { passive: true });
+
+    // Стартовая отрисовка
     initMaze();
+    resetGame();
     draw();
   </script>
 </body>
