@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Электроника ИМ-02: Волк ловит яйца 🐺🥚</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --case-color: #8b1e1b;
+      --case-metal: #c29b38;
+      --screen-border: #2c2f33;
+      --lcd-bg: #bccdb2;
+      --lcd-pixel: #182218;
+      --lcd-ghost: rgba(24, 34, 24, 0.05);
+      --btn-red: #c92a2a;
+      --btn-shadow: #7a1515;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background: #111418;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 100vh;
+      overflow: hidden;
+      touch-action: manipulation;
+      padding: 6px;
+    }
+
+    /* Верхняя панель переключения игр и статуса */
+    .top-bar {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 12px;
+      background: #1a1f26;
+      border-radius: 12px;
+      border: 1px solid #2d3748;
+      font-size: 13px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      margin-bottom: 4px;
+    }
+    .switch-btn {
+      background: #2b3544;
+      color: #38bdf8;
+      border: 1px solid #3b82f6;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+    .switch-btn:active {
+      transform: scale(0.95);
+      background: #3b82f6;
+      color: #fff;
+    }
+    .sound-toggle {
+      background: none;
+      border: none;
+      color: #cbd5e1;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+
+    /* Корпус консоли "Электроника" */
+    .console-body {
+      width: 100%;
+      max-width: 480px;
+      background: linear-gradient(145deg, #a82824 0%, #751512 100%);
+      border-radius: 24px;
+      padding: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6), inset 0 2px 4px rgba(255,255,255,0.25), inset 0 -4px 6px rgba(0,0,0,0.4);
+      border: 2px solid #54110f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      justify-content: space-around;
+      position: relative;
+    }
+
+    .console-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 8px;
+    }
+    .brand-title {
+      font-size: 15px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: #f6d365;
+      text-shadow: 1px 1px 2px #000;
+      text-transform: uppercase;
+    }
+    .model-badge {
+      font-size: 11px;
+      font-weight: bold;
+      color: #e2e8f0;
+      background: rgba(0,0,0,0.4);
+      padding: 2px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.1);
+      letter-spacing: 1px;
+    }
+
+    /* Рамка экрана */
+    .screen-bezel {
+      width: 100%;
+      background: #1c2024;
+      border-radius: 16px;
+      padding: 8px;
+      box-shadow: inset 0 4px 8px rgba(0,0,0,0.8), 0 2px 4px rgba(255,255,255,0.1);
+      border: 3px solid #333a42;
+      position: relative;
+    }
+
+    /* Сам LCD экран */
+    .screen-lcd {
+      background: var(--lcd-bg);
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.3);
+      aspect-ratio: 4 / 3;
+      width: 100%;
+      border: 1px solid #8e9e86;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 4 сенсорные зоны прямо на экране (невидимые, но кликабельные) */
+    .screen-tap-grid {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      z-index: 10;
+    }
+    .screen-tap-zone {
+      touch-action: none;
+    }
+    .screen-tap-zone:active {
+      background: rgba(0,0,0,0.06);
+    }
+
+    /* Сервисные кнопки (Игра А, Игра Б, Время, Сброс) */
+    .service-row {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin: 2px 0;
+    }
+    .mini-btn {
+      background: #2b2f35;
+      color: #f1f5f9;
+      border: 1px solid #4a5568;
+      border-radius: 10px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+      transition: all 0.1s;
+    }
+    .mini-btn.active {
+      background: #eab308;
+      color: #000;
+      border-color: #ca8a04;
+    }
+    .mini-btn:active {
+      transform: translateY(1px);
+    }
+
+    /* Нижний блок физических кнопок консоли (4 крупные тактильные кнопки) */
+    .controls-container {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 10px;
+      gap: 16px;
+    }
+    .control-cluster {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .game-btn {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #eb3b3b, #961212);
+      border: 2px solid #570b0b;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.6), inset 0 2px 4px rgba(255,255,255,0.4);
+      color: #fff;
+      font-size: 24px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      touch-action: none;
+      transition: all 0.08s ease;
+      position: relative;
+    }
+    .game-btn:active, .game-btn.pressed {
+      transform: translateY(3px) scale(0.97);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.8), inset 0 1px 2px rgba(0,0,0,0.5);
+      background: radial-gradient(circle at 45% 45%, #b31b1b, #730c0c);
+    }
+    .btn-label {
+      position: absolute;
+      bottom: -16px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #fcd34d;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      text-shadow: 0 1px 2px #000;
+    }
+
+    /* Динамик по центру */
+    .speaker-grill {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      opacity: 0.6;
+    }
+    .speaker-slot {
+      width: 32px;
+      height: 3px;
+      background: #330b0b;
+      border-radius: 2px;
+      box-shadow: inset 0 1px 1px #000, 0 1px 0 rgba(255,255,255,0.1);
+    }
+
+    /* Сообщение об окончании игры */
+    .game-over-banner {
+      position: absolute;
+      inset: 0;
+      background: rgba(188, 205, 178, 0.92);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #182218;
+      z-index: 20;
+      font-weight: 900;
+      text-align: center;
+      padding: 16px;
+    }
+    .game-over-banner h2 {
+      font-size: 26px;
+      letter-spacing: 2px;
+    }
+    .game-over-banner p {
+      font-size: 15px;
+    }
+    .restart-btn {
+      background: #182218;
+      color: #bccdb2;
+      border: none;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+    .restart-btn:active {
+      transform: scale(0.96);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Верхняя панель -->
+  <div class="top-bar">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span style="font-weight:bold; color:#f6d365;">🐺 НУ, ПОГОДИ!</span>
+      <span style="color:#94a3b8; font-size:11px;">ИМ-02</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <button class="sound-toggle" id="soundBtn" title="Звук">🔊</button>
+      <a href="snake.html" class="switch-btn">🐍 Змейка</a>
+    </div>
+  </div>
+
+  <!-- Корпус советской электронной игры -->
+  <div class="console-body">
+    <div class="console-header">
+      <div class="brand-title">ЭЛЕКТРОНИКА</div>
+      <div class="model-badge">ИМ-02</div>
+    </div>
+
+    <!-- Сервисные кнопки режимов -->
+    <div class="service-row">
+      <button class="mini-btn active" id="btnModeA">ИГРА А</button>
+      <button class="mini-btn" id="btnModeB">ИГРА Б</button>
+      <button class="mini-btn" id="btnReset">СБРОС</button>
+    </div>
+
+    <!-- Рамка с LCD дисплеем -->
+    <div class="screen-bezel">
+      <div class="screen-lcd" id="screenBox">
+        <canvas id="gameCanvas" width="480" height="360"></canvas>
+
+        <!-- Сетка нажатий прямо по экрану (для мобилок) -->
+        <div class="screen-tap-grid">
+          <div class="screen-tap-zone" id="tapTL" data-dir="0"></div>
+          <div class="screen-tap-zone" id="tapTR" data-dir="1"></div>
+          <div class="screen-tap-zone" id="tapBL" data-dir="2"></div>
+          <div class="screen-tap-zone" id="tapBR" data-dir="3"></div>
+        </div>
+
+        <!-- Баннер окончания игры -->
+        <div class="game-over-banner" id="gameOverModal">
+          <h2>ИГРА ОКОНЧЕНА</h2>
+          <p>Счет: <span id="finalScore">0</span></p>
+          <p style="font-size:12px; color:#3a4b3a;">Рекорд: <span id="finalHigh">0</span></p>
+          <button class="restart-btn" id="modalRestartBtn">ИГРАТЬ СНОВА</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Кнопки управления (4 позиции волка) -->
+    <div class="controls-container">
+      <!-- Левый кластер: Вверх-Влево и Вниз-Влево -->
+      <div class="control-cluster">
+        <button class="game-btn" id="btnTL" data-dir="0">
+          ↖
+          <span class="btn-label">ВВЕРХ</span>
+        </button>
+        <button class="game-btn" id="btnBL" data-dir="2">
+          ↙
+          <span class="btn-label">ВНИЗ</span>
+        </button>
+      </div>
+
+      <!-- Декоративный динамик -->
+      <div class="speaker-grill">
+        <div class="speaker-slot"></div>
+        <div class="speaker-slot"></div>
+        <div class="speaker-slot"></div>
+        <div class="speaker-slot"></div>
+        <div class="speaker-slot"></div>
+      </div>
+
+      <!-- Правый кластер: Вверх-Вправо и Вниз-Вправо -->
+      <div class="control-cluster">
+        <button class="game-btn" id="btnTR" data-dir="1">
+          ↗
+          <span class="btn-label">ВВЕРХ</span>
+        </button>
+        <button class="game-btn" id="btnBR" data-dir="3">
+          ↘
+          <span class="btn-label">ВНИЗ</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Telegram WebApp Инициализация ---
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready();
+      tg.expand();
+      try { tg.setHeaderColor('#8b1e1b'); } catch(e){}
+      try { tg.setBackgroundColor('#111418'); } catch(e){}
+    }
+
+    function triggerHaptic(type = 'light') {
+      if (tg?.HapticFeedback) {
+        if (type === 'light') tg.HapticFeedback.impactOccurred('light');
+        if (type === 'medium') tg.HapticFeedback.impactOccurred('medium');
+        if (type === 'heavy') tg.HapticFeedback.impactOccurred('heavy');
+        if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
+        if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+      }
+    }
+
+    // --- Звуковой движок (Web Audio API - пьезо-пищалка) ---
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      playTone(freq, duration, type = 'square', vol = 0.12) {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch(e) {}
+      }
+      eggStep() { this.playTone(1800, 0.03, 'square', 0.08); }
+      catchEgg() {
+        if (!this.enabled) return;
+        this.playTone(880, 0.06, 'square', 0.15);
+        setTimeout(() => this.playTone(1320, 0.09, 'square', 0.15), 60);
+      }
+      eggDrop() {
+        if (!this.enabled) return;
+        this.playTone(320, 0.15, 'sawtooth', 0.2);
+        setTimeout(() => this.playTone(220, 0.25, 'sawtooth', 0.2), 120);
+      }
+      chickRun() {
+        this.playTone(2400, 0.04, 'sine', 0.08);
+      }
+      btnClick() { this.playTone(600, 0.02, 'sine', 0.05); }
+    }
+    const audio = new SoundEngine();
+
+    // --- Конфигурация и состояние игры ---
+    // Позиции Волка (4 угла):
+    // 0: Вверх-Влево (TL)
+    // 1: Вверх-Вправо (TR)
+    // 2: Вниз-Влево (BL)
+    // 3: Вниз-Вправо (BR)
+    const POS_TL = 0;
+    const POS_TR = 1;
+    const POS_BL = 2;
+    const POS_BR = 3;
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let wolfPos = POS_BL; // По умолчанию: Волк внизу слева
+    let score = 0;
+    let highScore = parseInt(localStorage.getItem('wolf_highscore') || '0', 10);
+    let misses = 0; // 0..3 (штрафы)
+    let gameOver = false;
+    let gameMode = 'A'; // 'A' или 'B'
+    let hareActive = false; // Появление зайца вверху
+    let hareTimer = 0;
+
+    // Массив активных яиц на лотках:
+    // { tray: 0..3, step: 0..4, timer: 0 }
+    // step 0: под курицей, 1..3: катятся по лотку, 4: падает/ловится в корзину
+    let eggs = [];
+    let brokenEggAnim = null; // { side: 'left'|'right', timer: 0, chickX: 0 }
+
+    let tickInterval = 650; // интервал шага яйца в мс
+    let lastTickTime = performance.now();
+    let spawnTimer = 0;
+
+    // Разметка лотков (координаты шагов яиц для отрисовки)
+    // Каждый лоток имеет 5 позиций [x, y]
+    const TRAYS = [
+      // 0: Верхний левый (TL)
+      [ [56, 116], [82, 132], [110, 148], [138, 166], [168, 190] ],
+      // 1: Верхний правый (TR)
+      [ [424, 116], [398, 132], [370, 148], [342, 166], [312, 190] ],
+      // 2: Нижний левый (BL)
+      [ [56, 196], [82, 212], [110, 228], [138, 246], [168, 272] ],
+      // 3: Нижний правый (BR)
+      [ [424, 196], [398, 212], [370, 228], [342, 246], [312, 272] ]
+    ];
+
+    // Координаты корзины волка для проверки ловли
+    // корзина расположена возле шага 4 соответствующего лотка
+
+    // --- Отрисовка графики в стиле советского ЖК-дисплея ---
+    function drawLCD() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Фон с легким оттенком ЖК
+      ctx.fillStyle = '#bccdb2';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 1. Отрисовка статических декораций (домик, насесты, куры)
+      drawEnvironment();
+
+      // 2. Отрисовка зайца (если активен)
+      drawHare();
+
+      // 3. Отрисовка 4 насестов с курами
+      drawRoostsAndHens();
+
+      // 4. Отрисовка яиц на лотках
+      drawEggs();
+
+      // 5. Отрисовка волка в текущей позиции
+      drawWolf(wolfPos);
+
+      // 6. Отрисовка разбитого яйца и цыпленка при штрафе
+      if (brokenEggAnim) {
+        drawBrokenEgg();
+      }
+
+      // 7. Табло: Счет и Штрафы
+      drawScoreboard();
+    }
+
+    // Окружение: крыша курятника и забор
+    function drawEnvironment() {
+      ctx.fillStyle = '#182218';
+      ctx.strokeStyle = '#182218';
+      ctx.lineWidth = 2.5;
+
+      // Крыша слева
+      ctx.beginPath();
+      ctx.moveTo(15, 70);
+      ctx.lineTo(85, 45);
+      ctx.lineTo(155, 75);
+      ctx.stroke();
+
+      // Крыша справа
+      ctx.beginPath();
+      ctx.moveTo(325, 75);
+      ctx.lineTo(395, 45);
+      ctx.lineTo(465, 70);
+      ctx.stroke();
+
+      // Линия земли
+      ctx.beginPath();
+      ctx.moveTo(10, 320);
+      ctx.lineTo(470, 320);
+      ctx.stroke();
+
+      // Трава / доски внизу
+      for (let x = 20; x < 460; x += 30) {
+        ctx.beginPath();
+        ctx.moveTo(x, 320);
+        ctx.lineTo(x + 5, 313);
+        ctx.lineTo(x + 10, 320);
+        ctx.stroke();
+      }
+    }
+
+    // Заяц вверху (появляется и звонит в колокольчик)
+    function drawHare() {
+      if (!hareActive) return;
+      ctx.save();
+      ctx.fillStyle = '#182218';
+      ctx.strokeStyle = '#182218';
+      ctx.lineWidth = 2;
+
+      // Окошко вверху слева
+      ctx.strokeRect(175, 40, 44, 44);
+
+      // Уши
+      ctx.beginPath();
+      ctx.ellipse(190, 30, 4, 12, -0.15, 0, Math.PI * 2);
+      ctx.ellipse(204, 30, 4, 12, 0.15, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Голова зайца
+      ctx.beginPath();
+      ctx.arc(197, 52, 12, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Мордочка и колокольчик
+      ctx.beginPath();
+      ctx.arc(197, 72, 8, 0, Math.PI);
+      ctx.stroke();
+
+      // Колокольчик
+      ctx.beginPath();
+      ctx.moveTo(215, 62);
+      ctx.lineTo(223, 74);
+      ctx.lineTo(207, 74);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 4 лотка и куры
+    function drawRoostsAndHens() {
+      ctx.strokeStyle = '#182218';
+      ctx.fillStyle = '#182218';
+      ctx.lineWidth = 3;
+
+      // Лотки (наклонные желоба)
+      // 0: TL
+      ctx.beginPath();
+      ctx.moveTo(40, 115);
+      ctx.lineTo(165, 185);
+      ctx.stroke();
+
+      // 1: TR
+      ctx.beginPath();
+      ctx.moveTo(440, 115);
+      ctx.lineTo(315, 185);
+      ctx.stroke();
+
+      // 2: BL
+      ctx.beginPath();
+      ctx.moveTo(40, 195);
+      ctx.lineTo(165, 265);
+      ctx.stroke();
+
+      // 3: BR
+      ctx.beginPath();
+      ctx.moveTo(440, 195);
+      ctx.lineTo(315, 265);
+      ctx.stroke();
+
+      // Курицы на насестах
+      drawHen(35, 100, false);
+      drawHen(445, 100, true);
+      drawHen(35, 180, false);
+      drawHen(445, 180, true);
+    }
+
+    function drawHen(x, y, flip) {
+      ctx.save();
+      ctx.translate(x, y);
+      if (flip) ctx.scale(-1, 1);
+      ctx.fillStyle = '#182218';
+
+      // Тело
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 16, 11, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Голова с клювом
+      ctx.beginPath();
+      ctx.arc(15, -6, 7, 0, Math.PI * 2);
+      ctx.fill();
+      // Клюв
+      ctx.beginPath();
+      ctx.moveTo(21, -8);
+      ctx.lineTo(28, -5);
+      ctx.lineTo(21, -2);
+      ctx.closePath();
+      ctx.fill();
+      // Гребешок
+      ctx.beginPath();
+      ctx.arc(14, -14, 3, 0, Math.PI * 2);
+      ctx.arc(18, -13, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // Отрисовка катящихся яиц
+    function drawEggs() {
+      ctx.fillStyle = '#182218';
+      for (const egg of eggs) {
+        const coords = TRAYS[egg.tray][egg.step];
+        if (!coords) continue;
+        ctx.beginPath();
+        // Наклоняем яйцо по ходу движения
+        const rot = (egg.tray % 2 === 0) ? 0.35 : -0.35;
+        ctx.ellipse(coords[0], coords[1], 8, 11, rot, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Волк во всех 4 позициях (аутентичный силуэт в тельняшке с корзиной)
+    function drawWolf(pos) {
+      ctx.save();
+      ctx.fillStyle = '#182218';
+      ctx.strokeStyle = '#182218';
+      ctx.lineWidth = 2.5;
+
+      const isRight = (pos === POS_TR || pos === POS_BR);
+      const isUp = (pos === POS_TL || pos === POS_TR);
+
+      // Центр волка
+      const cx = 240;
+      const cy = 250;
+
+      ctx.translate(cx, cy);
+      if (isRight) ctx.scale(-1, 1);
+
+      // Ноги и хвост
+      ctx.beginPath();
+      ctx.ellipse(-15, 55, 6, 14, 0.1, 0, Math.PI * 2); // левая нога
+      ctx.ellipse(15, 55, 6, 14, -0.1, 0, Math.PI * 2); // правая нога
+      ctx.fill();
+
+      // Хвост
+      ctx.beginPath();
+      ctx.moveTo(25, 30);
+      ctx.quadraticCurveTo(55, 20, 50, 48);
+      ctx.quadraticCurveTo(40, 50, 20, 40);
+      ctx.fill();
+
+      // Тело в тельняшке (полосы)
+      ctx.beginPath();
+      ctx.roundRect(-22, -10, 44, 52, 10);
+      ctx.fill();
+
+      // Белые полосы тельняшки (вырезаем прозрачным/фоновым цветом)
+      ctx.fillStyle = '#bccdb2';
+      ctx.fillRect(-18, 0, 36, 4);
+      ctx.fillRect(-18, 10, 36, 4);
+      ctx.fillRect(-18, 20, 36, 4);
+      ctx.fillRect(-18, 30, 36, 4);
+
+      // Голова волка
+      ctx.fillStyle = '#182218';
+      const headY = isUp ? -32 : -22;
+      const headRot = isUp ? -0.2 : 0.1;
+
+      ctx.save();
+      ctx.translate(-5, headY);
+      ctx.rotate(headRot);
+
+      // Морда и пасть
+      ctx.beginPath();
+      ctx.arc(0, 0, 16, 0, Math.PI * 2);
+      ctx.fill();
+      // Вытянутый нос
+      ctx.beginPath();
+      ctx.moveTo(-10, -6);
+      ctx.lineTo(-32, -2);
+      ctx.lineTo(-24, 6);
+      ctx.lineTo(-8, 8);
+      ctx.closePath();
+      ctx.fill();
+      // Уши
+      ctx.beginPath();
+      ctx.moveTo(8, -12);
+      ctx.lineTo(16, -30);
+      ctx.lineTo(2, -18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-4, -12);
+      ctx.lineTo(-4, -28);
+      ctx.lineTo(-12, -16);
+      ctx.closePath();
+      ctx.fill();
+      // Нос кончик
+      ctx.beginPath();
+      ctx.arc(-32, -2, 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Шляпа / прическа
+      ctx.fillRect(-6, -18, 16, 5);
+
+      ctx.restore();
+
+      // Руки с корзиной
+      ctx.fillStyle = '#182218';
+      if (isUp) {
+        // Руки подняты вверх к верхнему лотку
+        ctx.beginPath();
+        ctx.moveTo(-16, 5);
+        ctx.lineTo(-55, -45);
+        ctx.lineTo(-68, -40);
+        ctx.lineTo(-24, 18);
+        ctx.fill();
+
+        // Корзина вверху
+        drawBasket(-72, -50);
+      } else {
+        // Руки опущены вниз к нижнему лотку
+        ctx.beginPath();
+        ctx.moveTo(-16, 15);
+        ctx.lineTo(-55, 20);
+        ctx.lineTo(-65, 28);
+        ctx.lineTo(-20, 32);
+        ctx.fill();
+
+        // Корзина внизу
+        drawBasket(-72, 22);
+      }
+
+      ctx.restore();
+    }
+
+    // Плетеная корзина
+    function drawBasket(x, y) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = '#182218';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 22, 12, 0, 0, Math.PI);
+      ctx.fill();
+      // Ручка корзины
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 16, Math.PI, 0);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Анимация разбитого яйца и цыпленка
+    function drawBrokenEgg() {
+      const b = brokenEggAnim;
+      const isLeft = (b.side === 'left');
+      const groundY = 318;
+      const splatX = isLeft ? 168 : 312;
+
+      ctx.fillStyle = '#182218';
+
+      // Яичница / скорлупа
+      ctx.beginPath();
+      ctx.ellipse(splatX, groundY, 14, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Убегающий цыпленок
+      const chickX = splatX + (isLeft ? -b.chickX : b.chickX);
+      ctx.save();
+      ctx.translate(chickX, groundY - 8);
+      if (!isLeft) ctx.scale(-1, 1);
+
+      // Тело цыпленка
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 7, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Голова с клювиком
+      ctx.beginPath();
+      ctx.arc(-7, -4, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-11, -4);
+      ctx.lineTo(-15, -3);
+      ctx.lineTo(-11, -1);
+      ctx.fill();
+      // Лапки (бегут)
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-2, 5);
+      ctx.lineTo(-5, 9);
+      ctx.moveTo(2, 5);
+      ctx.lineTo(5, 9);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // Табло: Счет, Рекорд, Штрафные очки
+    function drawScoreboard() {
+      ctx.fillStyle = '#182218';
+      ctx.font = 'bold 22px monospace';
+      ctx.textAlign = 'right';
+
+      // 7-сегментный цифровой стиль
+      const scoreStr = String(score).padStart(3, '0');
+      ctx.fillText(scoreStr, 450, 42);
+
+      // Надпись режима
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('ИГРА ' + gameMode, 240, 36);
+
+      // Штрафы (птички/цыплята вверху справа)
+      ctx.textAlign = 'right';
+      let penaltyIcons = '';
+      for (let i = 0; i < misses; i++) penaltyIcons += ' 🐣';
+      ctx.font = '16px sans-serif';
+      ctx.fillText(penaltyIcons, 450, 68);
+    }
+
+    // --- Логика игры (Game Loop & Mechanics) ---
+
+    function setWolfPosition(pos) {
+      if (gameOver) return;
+      if (wolfPos !== pos) {
+        wolfPos = pos;
+        audio.btnClick();
+        triggerHaptic('light');
+        highlightButton(pos);
+      }
+    }
+
+    function highlightButton(pos) {
+      const btns = [
+        document.getElementById('btnTL'),
+        document.getElementById('btnTR'),
+        document.getElementById('btnBL'),
+        document.getElementById('btnBR')
+      ];
+      btns.forEach((b, idx) => {
+        if (idx === pos) {
+          b.classList.add('pressed');
+          setTimeout(() => b.classList.remove('pressed'), 120);
+        }
+      });
+    }
+
+    // Спавн нового яйца на одном из 4 лотков
+    function spawnEgg() {
+      if (gameOver) return;
+      const maxEggs = (gameMode === 'A') ? 3 : 5;
+      if (eggs.length >= maxEggs) return;
+
+      // Выбираем лоток, где нет яйца на шаге 0
+      const busyTrays = eggs.filter(e => e.step === 0).map(e => e.tray);
+      const availableTrays = [0, 1, 2, 3].filter(t => !busyTrays.includes(t));
+      if (availableTrays.length === 0) return;
+
+      const tray = availableTrays[Math.floor(Math.random() * availableTrays.length)];
+      eggs.push({ tray: tray, step: 0 });
+    }
+
+    // Такт движения яиц (основная механика Электроники)
+    function gameTick() {
+      if (gameOver) return;
+
+      // Периодическое появление зайца
+      hareTimer++;
+      if (hareTimer > 18) {
+        hareActive = (Math.random() > 0.4);
+        hareTimer = 0;
+      }
+
+      // Продвигаем все яйца
+      const remainingEggs = [];
+      let caughtAny = false;
+
+      for (const egg of eggs) {
+        egg.step++;
+        audio.eggStep();
+
+        if (egg.step < 4) {
+          // Продолжает катиться
+          remainingEggs.push(egg);
+        } else if (egg.step === 4) {
+          // Шаг ловли: яйцо сошло с лотка
+          // Проверяем, находится ли волк в нужной позиции!
+          if (wolfPos === egg.tray) {
+            // ПОЙМАЛ! +1 очко
+            score++;
+            caughtAny = true;
+            audio.catchEgg();
+            triggerHaptic('success');
+
+            // Бонус: очистка штрафов при достижении 200 и 500 очков (правило ИМ-02!)
+            if (score === 200 || score === 500) {
+              misses = 0;
+            }
+
+            // Увеличиваем скорость по мере роста очков
+            adjustSpeed();
+          } else {
+            // УПУСТИЛ! Штрафное очко
+            handleMiss(egg.tray);
+          }
+        }
+      }
+
+      eggs = remainingEggs;
+
+      // Генерация новых яиц
+      spawnTimer++;
+      const spawnRate = (gameMode === 'A') ? 2 : 1;
+      if (spawnTimer >= spawnRate) {
+        spawnEgg();
+        spawnTimer = 0;
+      }
+    }
+
+    function adjustSpeed() {
+      // Скорость постепенно растет от 650мс до 220мс
+      const base = (gameMode === 'A') ? 650 : 500;
+      const min = (gameMode === 'A') ? 260 : 190;
+      tickInterval = Math.max(min, base - Math.floor(score / 5) * 22);
+    }
+
+    function handleMiss(tray) {
+      audio.eggDrop();
+      triggerHaptic('error');
+
+      // Если в этот момент заяц выглядывает — штраф в 2 раза мягче (или мигает)
+      misses++;
+
+      // Запуск анимации цыпленка
+      const isLeft = (tray === 0 || tray === 2);
+      brokenEggAnim = {
+        side: isLeft ? 'left' : 'right',
+        chickX: 0,
+        timer: 30
+      };
+
+      if (misses >= 3) {
+        endGame();
+      }
+    }
+
+    function endGame() {
+      gameOver = true;
+      triggerHaptic('heavy');
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('wolf_highscore', String(highScore));
+      }
+
+      document.getElementById('finalScore').textContent = score;
+      document.getElementById('finalHigh').textContent = highScore;
+      document.getElementById('gameOverModal').style.display = 'flex';
+    }
+
+    function resetGame(mode = 'A') {
+      gameMode = mode;
+      score = 0;
+      misses = 0;
+      gameOver = false;
+      eggs = [];
+      brokenEggAnim = null;
+      wolfPos = POS_BL;
+      adjustSpeed();
+      lastTickTime = performance.now();
+      document.getElementById('gameOverModal').style.display = 'none';
+
+      document.getElementById('btnModeA').classList.toggle('active', mode === 'A');
+      document.getElementById('btnModeB').classList.toggle('active', mode === 'B');
+    }
+
+    // Главный цикл рендера и физики
+    function mainLoop(now) {
+      if (!gameOver) {
+        if (now - lastTickTime >= tickInterval) {
+          gameTick();
+          lastTickTime = now;
+        }
+
+        // Анимация цыпленка
+        if (brokenEggAnim) {
+          brokenEggAnim.chickX += 2.2;
+          brokenEggAnim.timer--;
+          if (brokenEggAnim.timer % 6 === 0) audio.chickRun();
+          if (brokenEggAnim.timer <= 0) brokenEggAnim = null;
+        }
+      }
+
+      drawLCD();
+      requestAnimationFrame(mainLoop);
+    }
+
+    // --- Обработчики управления ---
+
+    // 1. Кнопки на корпусе
+    const bindBtn = (id, pos) => {
+      const el = document.getElementById(id);
+      const press = (e) => {
+        e.preventDefault();
+        setWolfPosition(pos);
+      };
+      el.addEventListener('touchstart', press, { passive: false });
+      el.addEventListener('mousedown', press);
+    };
+
+    bindBtn('btnTL', POS_TL);
+    bindBtn('btnTR', POS_TR);
+    bindBtn('btnBL', POS_BL);
+    bindBtn('btnBR', POS_BR);
+
+    // 2. Нажатия прямо на 4 квадранта экрана (удобно на смартфонах)
+    bindBtn('tapTL', POS_TL);
+    bindBtn('tapTR', POS_TR);
+    bindBtn('tapBL', POS_BL);
+    bindBtn('tapBR', POS_BR);
+
+    // 3. Клавиатура (ПК)
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      // Левая сторона: Q/W/Стрелка Вверх (TL), A/S/Стрелка Вниз (BL)
+      if (k === 'q' || k === 'w' || k === 'arrowup') setWolfPosition(POS_TL);
+      else if (k === 'a' || k === 's' || k === 'arrowdown') setWolfPosition(POS_BL);
+      // Правая сторона: E/O/P (TR), D/K/L (BR)
+      else if (k === 'e' || k === 'o' || k === 'p' || k === 'arrowright') setWolfPosition(POS_TR);
+      else if (k === 'd' || k === 'k' || k === 'l' || k === 'arrowleft') setWolfPosition(POS_BR);
+      // Цифровой блок
+      else if (k === '7') setWolfPosition(POS_TL);
+      else if (k === '9') setWolfPosition(POS_TR);
+      else if (k === '1') setWolfPosition(POS_BL);
+      else if (k === '3') setWolfPosition(POS_BR);
+    });
+
+    // 4. Режимы и кнопки меню
+    document.getElementById('btnModeA').addEventListener('click', () => resetGame('A'));
+    document.getElementById('btnModeB').addEventListener('click', () => resetGame('B'));
+    document.getElementById('btnReset').addEventListener('click', () => resetGame(gameMode));
+    document.getElementById('modalRestartBtn').addEventListener('click', () => resetGame(gameMode));
+
+    // 5. Переключение звука
+    const soundBtn = document.getElementById('soundBtn');
+    soundBtn.addEventListener('click', () => {
+      audio.enabled = !audio.enabled;
+      soundBtn.textContent = audio.enabled ? '🔊' : '🔇';
+      triggerHaptic('light');
+    });
+
+    // Старт
+    resetGame('A');
+    requestAnimationFrame(mainLoop);
+  </script>
+</body>
+</html>
